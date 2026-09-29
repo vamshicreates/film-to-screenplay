@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """
 compile_screenplay_pdf.py
-Compiles one or more Fountain screenplay files into:
-1. A strict US Letter, 12pt Courier Hollywood Screenplay PDF with an embedded
-   SRT-Reconstruction & Fair-Dealing Legal Disclaimer on Page 1 (Title Page).
-2. A merged master .fountain screenplay file.
-3. A 1080x1080 Static Disclaimer Image Card (.png) for social/community sharing.
+Universal Hollywood Screenplay PDF & Legal Disclaimer Compiler.
+Works for ANY movie title, language/dialect, director, and production house.
+
+Generates:
+1. A strict US Letter, 12pt Courier Hollywood Screenplay PDF (<Movie>_Screenplay.pdf)
+   with a dynamically tailored 4-Pillar SRT-Reconstruction & Fair-Dealing Legal
+   Disclaimer permanently embedded on Page 1 (Title Page).
+2. A merged master Fountain screenplay file (<Movie>_Screenplay.fountain).
+3. A 1080x1080 Static Social / Giveaway Disclaimer Card (<Movie>_Disclaimer_Card.png)
+   tailored to the specific film, director, and production house.
 4. Optional rendered PNG page previews for visual verification.
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -405,6 +411,29 @@ def parse_fountain_to_story(fountain_text: str, styles, char_map=None):
     return story
 
 
+def format_creator_clause(director: str, writers: str, production_house: str) -> str:
+    """Builds a natural, movie-specific attribution clause for the legal disclaimer."""
+    parts = []
+    if director:
+        parts.append(f"the director ({director})")
+    else:
+        parts.append("the director")
+
+    if writers and writers.lower() != director.lower():
+        parts.append(f"writers ({writers})")
+    else:
+        parts.append("writers")
+
+    if production_house and production_house.lower() != "the production house":
+        parts.append(f"producers ({production_house})")
+    else:
+        parts.append("the producers or production house")
+
+    if len(parts) == 3:
+        return f"{parts[0]}, {parts[1]}, or {parts[2]}"
+    return ", ".join(parts)
+
+
 def build_title_page_story(
     styles,
     title: str,
@@ -416,12 +445,12 @@ def build_title_page_story(
     dialect_note: str,
 ):
     story = []
-    story.append(Spacer(1, 2.0 * inch))
+    story.append(Spacer(1, 1.45 * inch))
     story.append(Paragraph(f"<u>{clean_line(title.upper())}</u>", styles["TitleMain"]))
     if subtitle:
         story.append(Paragraph(clean_line(subtitle), styles["TitleSub"]))
     else:
-        story.append(Spacer(1, 0.25 * inch))
+        story.append(Spacer(1, 0.2 * inch))
 
     if director:
         story.append(Paragraph("Written &amp; Directed by", styles["TitleCredit"]))
@@ -433,39 +462,45 @@ def build_title_page_story(
         story.append(Paragraph("Original Music by", styles["TitleCredit"]))
         story.append(Paragraph(clean_line(music.upper()), styles["TitleCreditBold"]))
 
-    story.append(Spacer(1, 1.35 * inch))
+    story.append(Spacer(1, 0.9 * inch))
     if dialect_note:
-        story.append(Paragraph(f"<b>LANGUAGE &amp; FORMAT NOTE:</b> {clean_line(dialect_note)}", styles["TitleFooter"]))
-        story.append(Spacer(1, 0.1 * inch))
+        story.append(
+            Paragraph(
+                f"<b>LANGUAGE &amp; FORMAT NOTE:</b> {clean_line(dialect_note)}",
+                styles["TitleFooter"],
+            )
+        )
+        story.append(Spacer(1, 0.08 * inch))
 
-    prod_str = production_house if production_house else "the production house"
+    creator_clause = format_creator_clause(director, writers, production_house)
+
     story.append(
         Paragraph(
-            "<b>EDUCATIONAL &amp; ARCHIVAL DISCLAIMER (UNOFFICIAL SRT RECONSTRUCTION):</b>",
+            f"<b>EDUCATIONAL &amp; ARCHIVAL DISCLAIMER -- {clean_line(title.upper())} (UNOFFICIAL SRT RECONSTRUCTION):</b>",
             styles["TitleFooter"],
         )
     )
     story.append(
         Paragraph(
-            "This screenplay is an independent, unofficial study reconstruction transcribed and formatted",
+            f'This screenplay for "{clean_line(title)}" is an independent, unofficial study reconstruction',
             styles["TitleFooter"],
         )
     )
     story.append(
         Paragraph(
-            "from the released film's subtitle (SRT) track (~90-95% faithful to the theatrical cut; minor errors may exist).",
+            "transcribed and formatted from the released film's subtitle (SRT) track (~90-95% faithful to the theatrical cut; minor errors may exist).",
             styles["TitleFooter"],
         )
     )
     story.append(
         Paragraph(
-            f"It is NOT an official production script provided by the director, writers, or {clean_line(prod_str)}.",
+            f"It is NOT an official production script provided by {clean_line(creator_clause)}.",
             styles["TitleFooter"],
         )
     )
     story.append(
         Paragraph(
-            "Shared strictly free of charge for non-commercial film study and screenwriting education.",
+            "Created and shared strictly free of charge for non-commercial film study to help filmmakers read and analyze the script.",
             styles["TitleFooter"],
         )
     )
@@ -480,23 +515,29 @@ def build_title_page_story(
     return story
 
 
-def generate_disclaimer_card_png(output_png: str, title: str, production_house: str):
-    """Generates a clean 1080x1080 dark-mode editorial static disclaimer card for social posts."""
+def generate_disclaimer_card_png(
+    output_png: str,
+    title: str,
+    director: str,
+    writers: str,
+    production_house: str,
+):
+    """Generates a clean 1080x1080 dark-mode editorial static disclaimer card tailored to the movie."""
     from PIL import Image, ImageDraw, ImageFont
 
     width, height = 1080, 1080
     img = Image.new("RGB", (width, height), color=(14, 14, 16))
     draw = ImageDraw.Draw(img)
 
-    # Subtle border frame
     draw.rectangle([48, 48, width - 48, height - 48], outline=(65, 65, 72), width=2)
     draw.rectangle([60, 60, width - 60, height - 60], outline=(35, 35, 40), width=1)
 
-    # Load monospace/sans font (fallback to default if system font unavailable)
     def load_font(size, bold=False):
         candidates = [
             "/System/Library/Fonts/Courier.dfont",
-            "/System/Library/Fonts/Supplemental/Courier New Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Courier New.ttf",
+            "/System/Library/Fonts/Supplemental/Courier New Bold.ttf"
+            if bold
+            else "/System/Library/Fonts/Supplemental/Courier New.ttf",
             "/Library/Fonts/Courier New.ttf",
             "C:\\Windows\\Fonts\\courbd.ttf" if bold else "C:\\Windows\\Fonts\\cour.ttf",
         ]
@@ -509,36 +550,47 @@ def generate_disclaimer_card_png(output_png: str, title: str, production_house: 
         return ImageFont.load_default()
 
     font_tag = load_font(22, bold=True)
-    font_title = load_font(38, bold=True)
-    font_body = load_font(26, bold=False)
+    font_title = load_font(36, bold=True)
+    font_body = load_font(25, bold=False)
     font_footer = load_font(20, bold=False)
 
-    # Header Tag
-    draw.text((100, 130), "FOR FILMMAKERS & SCREENWRITING STUDY ONLY", fill=(212, 175, 55), font=font_tag)
+    draw.text(
+        (100, 125),
+        "FOR FILMMAKERS & SCREENWRITING STUDY ONLY",
+        fill=(212, 175, 55),
+        font=font_tag,
+    )
 
-    # Movie Title
-    draw.text((100, 190), title.upper(), fill=(245, 245, 247), font=font_title)
-    draw.line([(100, 255), (980, 255)], fill=(70, 70, 78), width=2)
+    # Wrap long movie titles cleanly if needed
+    title_lines = textwrap.wrap(title.upper(), width=34)[:2]
+    y_title = 180
+    for t_ln in title_lines:
+        draw.text((100, y_title), t_ln, fill=(245, 245, 247), font=font_title)
+        y_title += 44
 
-    prod_str = production_house if production_house else "the production house"
+    divider_y = y_title + 15
+    draw.line([(100, divider_y), (980, divider_y)], fill=(70, 70, 78), width=2)
+
+    creator_clause = format_creator_clause(director, writers, production_house)
     paragraph = (
-        f"This screenplay is an independent, unofficial reconstruction "
-        f"transcribed and formatted from the released film's SRT subtitle track "
-        f"(~90-95% faithful to the theatrical cut, with minor variations possible).\n\n"
-        f"It was NOT provided by the director, writers, or {prod_str}, and is "
-        f"shared strictly free of charge as a non-commercial educational resource "
-        f"to help aspiring writers and filmmakers read and study the script.\n\n"
+        f'This screenplay for "{title}" is an independent, unofficial '
+        f"reconstruction transcribed and formatted from the released film's "
+        f"SRT subtitle track (~90-95% faithful to the theatrical cut, with "
+        f"minor variations possible).\n\n"
+        f"It was NOT provided by {creator_clause}, and is shared strictly "
+        f"free of charge as a non-commercial educational resource to help "
+        f"aspiring writers and filmmakers read and study the script.\n\n"
         f"All underlying characters, story, and intellectual property belong "
         f"solely to the original creators and copyright holders."
     )
 
-    y_cursor = 310
+    y_cursor = divider_y + 45
     for block in paragraph.split("\n\n"):
         wrapped = textwrap.wrap(block, width=52)
         for ln in wrapped:
             draw.text((100, y_cursor), ln, fill=(220, 220, 225), font=font_body)
-            y_cursor += 40
-        y_cursor += 28
+            y_cursor += 38
+        y_cursor += 26
 
     draw.line([(100, 910), (980, 910)], fill=(50, 50, 58), width=1)
     draw.text(
@@ -551,20 +603,55 @@ def generate_disclaimer_card_png(output_png: str, title: str, production_house: 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compile Fountain parts into a Hollywood Screenplay PDF.")
-    parser.add_argument("--title", required=True, help="Film title (e.g. 'PUSHPA: THE RISE - PART 1')")
-    parser.add_argument("--subtitle", default="Complete Feature Screenplay", help="Subtitle on Title Page")
+    parser = argparse.ArgumentParser(
+        description="Compile Fountain screenplay parts into a Hollywood Screenplay PDF + Movie-Specific Legal Disclaimer."
+    )
+    parser.add_argument("--title", required=True, help="Film title (e.g. 'ANIMAL', 'RRR', 'OPPENHEIMER')")
+    parser.add_argument(
+        "--subtitle",
+        default="Complete Feature Screenplay (Unofficial SRT Study Reconstruction)",
+        help="Subtitle on Title Page",
+    )
     parser.add_argument("--director", default="", help="Director / Writer credit")
     parser.add_argument("--writers", default="", help="Co-writers / Dialogue credit")
     parser.add_argument("--music", default="", help="Music composer credit")
-    parser.add_argument("--production-house", default="the production house", help="Production company name for legal disclaimer")
-    parser.add_argument("--dialect-note", default="", help="Optional note on language/transliteration dialect")
+    parser.add_argument(
+        "--production-house",
+        default="the production house",
+        help="Production company name for the legal disclaimer",
+    )
+    parser.add_argument(
+        "--dialect-note",
+        default="",
+        help="Optional note on language/transliteration dialect",
+    )
+    parser.add_argument(
+        "--char-map-json",
+        default="",
+        help="Optional JSON string or file path mapping character name variants to canonical names",
+    )
     parser.add_argument("--output-pdf", required=True, help="Output PDF path")
     parser.add_argument("--output-fountain", default="", help="Optional output merged .fountain path")
-    parser.add_argument("--disclaimer-image", default="", help="Optional output path for 1080x1080 static disclaimer PNG")
-    parser.add_argument("--preview-dir", default="", help="Optional directory to render PNG previews of Page 1, 2, and Last Page")
+    parser.add_argument(
+        "--disclaimer-image",
+        default="",
+        help="Optional output path for 1080x1080 static disclaimer PNG",
+    )
+    parser.add_argument(
+        "--preview-dir",
+        default="",
+        help="Optional directory to render PNG previews of Page 1, 2, Middle, and Last Page",
+    )
     parser.add_argument("parts", nargs="+", help="Input .fountain files in chronological order")
     args = parser.parse_args()
+
+    char_map = {}
+    if args.char_map_json:
+        if os.path.exists(args.char_map_json):
+            with open(args.char_map_json, "r", encoding="utf-8") as jf:
+                char_map = json.load(jf)
+        else:
+            char_map = json.loads(args.char_map_json)
 
     combined_text = []
     for p in args.parts:
@@ -621,13 +708,19 @@ def main():
             dialect_note=args.dialect_note,
         )
     )
-    story.extend(parse_fountain_to_story(full_fountain, styles))
+    story.extend(parse_fountain_to_story(full_fountain, styles, char_map=char_map))
     doc.build(story)
     print(f"Built PDF: {args.output_pdf}")
 
     if args.disclaimer_image:
         os.makedirs(os.path.dirname(os.path.abspath(args.disclaimer_image)), exist_ok=True)
-        generate_disclaimer_card_png(args.disclaimer_image, args.title, args.production_house)
+        generate_disclaimer_card_png(
+            args.disclaimer_image,
+            args.title,
+            args.director,
+            args.writers,
+            args.production_house,
+        )
         print(f"Built Disclaimer Card PNG: {args.disclaimer_image}")
 
     if args.preview_dir:
