@@ -1,6 +1,6 @@
 ---
 name: film-to-screenplay
-description: Universal AI Agent Skill that converts ANY movie title (or .srt file) into a complete, unabridged, Hollywood-format Screenplay PDF (US Letter, 12pt Courier) with standardized character cues, direct dialogues (either in the film's original language written in English words/Romanized script—such as Hindi, Telugu, Tamil, Kannada, Malayalam—or in English), a dynamically tailored SRT-reconstruction legal/fair-dealing disclaimer permanently embedded on Page 1 of the PDF, and a 1080x1080 static social disclaimer card. Activate whenever the user asks for any movie script, film screenplay, or movie dialogue PDF.
+description: Convert any movie title or .srt file into a complete Hollywood-format Screenplay PDF (12pt Courier) with Romanized or English direct dialogues, Page 1 legal disclaimer, and 1080x1080 social card. Use when asked for any movie script or screenplay.
 ---
 
 # Universal Film-to-Screenplay Reconstruction & Legal PDF Compiler (`film-to-screenplay`)
